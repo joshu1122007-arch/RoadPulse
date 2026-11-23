@@ -1,0 +1,168 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user account profile and role settings stored per authenticated user.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the user." },
+        "name": { "type": "string", "description": "Display name." },
+        "email": { "type": "string", "description": "User email address (PII)." },
+        "phone": { "type": "string", "description": "Optional phone number (PII)." },
+        "role": { "type": "string", "enum": ["public", "admin"], "description": "RBAC role." },
+        "preferredRegionId": { "type": "string", "description": "Preferred region identifier." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp on creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp on update." }
+      },
+      "required": ["userId", "name", "role", "preferredRegionId", "createdAt", "updatedAt"]
+    },
+    "UserPreference": {
+      "title": "UserPreference",
+      "description": "Alert radius, hazard categories, notification frequency, and watched regions.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "alertRadiusKm": { "type": "number" },
+        "enabledCategories": { "type": "array" },
+        "notificationFrequency": { "type": "string", "enum": ["REALTIME", "HOURLY_DIGEST", "DAILY_SUMMARY"] },
+        "watchedRegions": { "type": "array" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "alertRadiusKm", "enabledCategories", "notificationFrequency", "watchedRegions", "updatedAt"]
+    },
+    "UserNotification": {
+      "title": "UserNotification",
+      "description": "In-app location-based hazard, status update, or weather alert notification.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "incidentId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "approximateLocation": { "type": "string" },
+        "incidentStatus": { "type": "string" },
+        "notificationType": { "type": "string", "enum": ["NEARBY_HAZARD", "STATUS_UPDATE", "WEATHER_ALERT"] },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "categoryId", "approximateLocation", "incidentStatus", "notificationType", "read", "createdAt"]
+    },
+    "AdminMarker": {
+      "title": "AdminMarker",
+      "description": "Server-provisioned administrator registry entry.",
+      "type": "object",
+      "properties": {
+        "grantedAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Incident": {
+      "title": "Incident",
+      "description": "Road safety or natural disaster hazard report with geospatial, AI classification, and weather context.",
+      "type": "object",
+      "properties": {
+        "reporterId": { "type": "string" },
+        "reporterRoleLabel": { "type": "string" },
+        "categoryId": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "locationLabel": { "type": "string" },
+        "regionId": { "type": "string" },
+        "severity": { "type": "string", "enum": ["LOW", "MODERATE", "HIGH"] },
+        "status": { "type": "string", "enum": ["PENDING_VERIFICATION", "VERIFIED", "UNDER_INVESTIGATION", "RESOLVED", "REJECTED"] },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "REPORTER_ONLY"] },
+        "riskLevel": { "type": "string", "enum": ["LOW", "MODERATE", "HIGH"] },
+        "riskSummary": { "type": "string" },
+        "source": { "type": "string", "enum": ["COMMUNITY_REPORT", "OFFICIAL_WARNING"] },
+        "thumbnailBase64": { "type": "string" },
+        "photoPresent": { "type": "boolean" },
+        "aiCategory": { "type": "string" },
+        "aiConfidence": { "type": "number" },
+        "aiDescription": { "type": "string" },
+        "aiSuggestedSeverity": { "type": "string" },
+        "aiRequiresHumanReview": { "type": "boolean" },
+        "aiStatus": { "type": "string", "enum": ["COMPLETED", "UNAVAILABLE", "SKIPPED"] },
+        "weatherCondition": { "type": "string" },
+        "weatherTempC": { "type": "number" },
+        "weatherRainfallMm": { "type": "number" },
+        "weatherSource": { "type": "string" },
+        "verificationNotes": { "type": "string" },
+        "verifiedBy": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" },
+        "resolvedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "reporterId", "reporterRoleLabel", "categoryId", "title", "description",
+        "latitude", "longitude", "locationLabel", "regionId", "severity",
+        "status", "visibility", "riskLevel", "riskSummary", "source",
+        "photoPresent", "aiStatus", "createdAt", "updatedAt"
+      ]
+    },
+    "IncidentUpdate": {
+      "title": "IncidentUpdate",
+      "description": "Immutable verification and status history entry for an incident.",
+      "type": "object",
+      "properties": {
+        "incidentId": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "REPORTER_ONLY"] },
+        "previousStatus": { "type": "string" },
+        "newStatus": { "type": "string" },
+        "updatedBy": { "type": "string" },
+        "updatedByRole": { "type": "string", "enum": ["CITIZEN", "ADMIN"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["incidentId", "reporterId", "visibility", "previousStatus", "newStatus", "updatedBy", "updatedByRole", "notes", "createdAt"]
+    },
+    "Evidence": {
+      "title": "Evidence",
+      "description": "Photographic or document evidence attached to a hazard incident report.",
+      "type": "object",
+      "properties": {
+        "incidentId": { "type": "string" },
+        "reporterId": { "type": "string" },
+        "visibility": { "type": "string", "enum": ["PUBLIC", "REPORTER_ONLY"] },
+        "fileUrl": { "type": "string" },
+        "fileType": { "type": "string", "enum": ["image/jpeg", "image/png", "image/webp", "application/pdf", "video/mp4"] },
+        "caption": { "type": "string" },
+        "thumbnailBase64": { "type": "string" },
+        "uploadedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["incidentId", "reporterId", "visibility", "fileType", "uploadedAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Private user profiles isolated to the owner or administrator."
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": { "$ref": "#/entities/UserPreference" },
+      "description": "User alert radius and hazard category preferences."
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/UserNotification" },
+      "description": "User-scoped in-app notifications."
+    },
+    "/admins/{adminUid}": {
+      "schema": { "$ref": "#/entities/AdminMarker" },
+      "description": "Read-only admin registry."
+    },
+    "/incidents/{incidentId}": {
+      "schema": { "$ref": "#/entities/Incident" },
+      "description": "Public safety hazard reports and verified incidents."
+    },
+    "/evidence/{evidenceId}": {
+      "schema": { "$ref": "#/entities/Evidence" },
+      "description": "Photographic or document evidence items linked to incidents by incidentId."
+    },
+    "/incident_updates/{updateId}": {
+      "schema": { "$ref": "#/entities/IncidentUpdate" },
+      "description": "Incident verification and status history trail linked by incidentId."
+    }
+  }
+}

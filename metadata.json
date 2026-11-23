@@ -1,0 +1,6 @@
+{
+  "name": "RoadPulse",
+  "description": "AI-assisted road safety and natural disaster awareness platform for citizen hazard reporting, interactive mapping, and incident verification.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

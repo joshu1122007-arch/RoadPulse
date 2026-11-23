@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?>
+<resources>
+    <string name="firestore_database_id" translatable="false">ai-studio-android-roadpuls-cd4e3d08-b97d-4ed7-88b7-d92897ae5991</string>
+    <string name="recaptcha_site_key" translatable="false">6Lesgy4uAAAAAHu3IAMUwCPtSnBtgQPAsIFeanXQ</string>
+</resources>

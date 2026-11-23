@@ -1,0 +1,365 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global safety net: default-deny all unspecified paths
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Shared Primitives ---
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+    function incoming() {
+      return request.resource.data;
+    }
+    function existing() {
+      return resource.data;
+    }
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    function isAdminEmail() {
+      return isSignedIn() &&
+             request.auth.token.email_verified == true &&
+             request.auth.token.email == 'joshu1122007@gmail.com';
+    }
+    function isAdmin() {
+      return isAdminEmail() ||
+             (isSignedIn() && exists(/databases/$(database)/documents/admins/$(request.auth.uid)));
+    }
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- Validation Helpers ---
+    function isValidUserProfile(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 80 &&
+             data.role in ['public', 'admin'] &&
+             data.preferredRegionId is string && data.preferredRegionId.size() >= 1 && data.preferredRegionId.size() <= 64 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('phone' in data) || (data.phone is string && data.phone.size() <= 30)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidUserPreference(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.alertRadiusKm is number && data.alertRadiusKm >= 1 && data.alertRadiusKm <= 100 &&
+             data.enabledCategories is list && data.enabledCategories.size() <= 25 &&
+             (data.enabledCategories.size() == 0 || data.enabledCategories[0] is string) &&
+             data.notificationFrequency in ['REALTIME', 'HOURLY_DIGEST', 'DAILY_SUMMARY'] &&
+             data.watchedRegions is list && data.watchedRegions.size() <= 10 &&
+             (data.watchedRegions.size() == 0 || data.watchedRegions[0] is string) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidNotification(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             (!('incidentId' in data) || (data.incidentId is string && data.incidentId.size() <= 128)) &&
+             data.title is string && data.title.size() >= 1 && data.title.size() <= 140 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 500 &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 64 &&
+             data.approximateLocation is string && data.approximateLocation.size() >= 1 && data.approximateLocation.size() <= 140 &&
+             data.incidentStatus in ['PENDING_VERIFICATION', 'VERIFIED', 'UNDER_INVESTIGATION', 'RESOLVED', 'REJECTED', 'WEATHER_ALERT'] &&
+             data.notificationType in ['NEARBY_HAZARD', 'STATUS_UPDATE', 'WEATHER_ALERT'] &&
+             data.read is bool &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidIncident(data) {
+      return data.reporterId is string && data.reporterId.size() >= 1 && data.reporterId.size() <= 128 &&
+             data.reporterRoleLabel is string && data.reporterRoleLabel.size() >= 1 && data.reporterRoleLabel.size() <= 40 &&
+             data.categoryId is string && data.categoryId.size() >= 1 && data.categoryId.size() <= 64 &&
+             data.title is string && data.title.size() >= 3 && data.title.size() <= 120 &&
+             data.description is string && data.description.size() >= 5 && data.description.size() <= 1000 &&
+             data.latitude is number && data.latitude >= -90.0 && data.latitude <= 90.0 &&
+             data.longitude is number && data.longitude >= -180.0 && data.longitude <= 180.0 &&
+             data.locationLabel is string && data.locationLabel.size() >= 2 && data.locationLabel.size() <= 160 &&
+             data.regionId is string && data.regionId.size() >= 1 && data.regionId.size() <= 64 &&
+             data.severity in ['LOW', 'MODERATE', 'HIGH'] &&
+             data.status in ['PENDING_VERIFICATION', 'VERIFIED', 'UNDER_INVESTIGATION', 'RESOLVED', 'REJECTED'] &&
+             data.visibility in ['PUBLIC', 'REPORTER_ONLY'] &&
+             data.riskLevel in ['LOW', 'MODERATE', 'HIGH'] &&
+             data.riskSummary is string && data.riskSummary.size() <= 400 &&
+             data.source in ['COMMUNITY_REPORT', 'OFFICIAL_WARNING'] &&
+             data.photoPresent is bool &&
+             data.aiStatus in ['COMPLETED', 'UNAVAILABLE', 'SKIPPED'] &&
+             (!('thumbnailBase64' in data) || (data.thumbnailBase64 is string && data.thumbnailBase64.size() <= 260000)) &&
+             (!('aiCategory' in data) || (data.aiCategory is string && data.aiCategory.size() <= 64)) &&
+             (!('aiConfidence' in data) || (data.aiConfidence is number && data.aiConfidence >= 0.0 && data.aiConfidence <= 1.0)) &&
+             (!('aiDescription' in data) || (data.aiDescription is string && data.aiDescription.size() <= 400)) &&
+             (!('aiSuggestedSeverity' in data) || (data.aiSuggestedSeverity in ['LOW', 'MODERATE', 'HIGH'])) &&
+             (!('aiRequiresHumanReview' in data) || (data.aiRequiresHumanReview is bool)) &&
+             (!('weatherCondition' in data) || (data.weatherCondition is string && data.weatherCondition.size() <= 80)) &&
+             (!('weatherTempC' in data) || (data.weatherTempC is number)) &&
+             (!('weatherRainfallMm' in data) || (data.weatherRainfallMm is number)) &&
+             (!('weatherSource' in data) || (data.weatherSource is string && data.weatherSource.size() <= 60)) &&
+             (!('verificationNotes' in data) || (data.verificationNotes is string && data.verificationNotes.size() <= 500)) &&
+             (!('verifiedBy' in data) || (data.verifiedBy is string && data.verifiedBy.size() <= 128)) &&
+             (!('resolvedAt' in data) || isValidTimestamp(data.resolvedAt)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidIncidentUpdate(data) {
+      return data.incidentId is string && data.incidentId.size() >= 1 && data.incidentId.size() <= 128 &&
+             data.reporterId is string && data.reporterId.size() >= 1 && data.reporterId.size() <= 128 &&
+             data.visibility in ['PUBLIC', 'REPORTER_ONLY'] &&
+             data.previousStatus in ['NONE', 'PENDING_VERIFICATION', 'VERIFIED', 'UNDER_INVESTIGATION', 'RESOLVED', 'REJECTED'] &&
+             data.newStatus in ['PENDING_VERIFICATION', 'VERIFIED', 'UNDER_INVESTIGATION', 'RESOLVED', 'REJECTED'] &&
+             data.updatedBy is string && data.updatedBy.size() >= 1 && data.updatedBy.size() <= 128 &&
+             data.updatedByRole in ['CITIZEN', 'ADMIN'] &&
+             data.notes is string && data.notes.size() <= 500 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidEvidence(data) {
+      return data.incidentId is string && data.incidentId.size() >= 1 && data.incidentId.size() <= 128 &&
+             data.reporterId is string && data.reporterId.size() >= 1 && data.reporterId.size() <= 128 &&
+             data.visibility in ['PUBLIC', 'REPORTER_ONLY'] &&
+             data.fileType in ['image/jpeg', 'image/png', 'image/webp', 'application/pdf', 'video/mp4'] &&
+             (!('fileUrl' in data) || (data.fileUrl is string && data.fileUrl.size() <= 500)) &&
+             (!('caption' in data) || (data.caption is string && data.caption.size() <= 300)) &&
+             (!('thumbnailBase64' in data) || (data.thumbnailBase64 is string && data.thumbnailBase64.size() <= 260000)) &&
+             isValidTimestamp(data.uploadedAt);
+    }
+
+    // --- Collection Rules ---
+    match /admins/{adminUid} {
+      allow get: if isSignedIn() && isValidId(adminUid) && (request.auth.uid == adminUid || isAdmin());
+      allow list, write: if false;
+    }
+
+    match /users/{userId} {
+      allow get: if isSignedIn() && isValidId(userId) && (isOwner(userId) || isAdmin());
+      allow list: if isAdminEmail();
+
+      allow create: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == request.auth.uid &&
+                       incoming().role == 'public' &&
+                       incoming().keys().hasAll(['userId', 'name', 'role', 'preferredRegionId', 'createdAt', 'updatedAt']) &&
+                       incoming().keys().hasOnly(['userId', 'name', 'email', 'phone', 'role', 'preferredRegionId', 'createdAt', 'updatedAt']) &&
+                       isValidUserProfile(incoming());
+
+      allow update: if isOwner(userId) &&
+                       isValidId(userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().role == existing().role &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['name', 'phone', 'preferredRegionId', 'updatedAt']) &&
+                       isValidUserProfile(incoming());
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /preferences/{prefId} {
+        allow get, list: if isOwner(userId);
+
+        allow create: if isOwner(userId) &&
+                         isValidId(prefId) &&
+                         incoming().userId == request.auth.uid &&
+                         incoming().keys().hasAll(['userId', 'alertRadiusKm', 'enabledCategories', 'notificationFrequency', 'watchedRegions', 'updatedAt']) &&
+                         incoming().keys().hasOnly(['userId', 'alertRadiusKm', 'enabledCategories', 'notificationFrequency', 'watchedRegions', 'updatedAt']) &&
+                         isValidUserPreference(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(prefId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['alertRadiusKm', 'enabledCategories', 'notificationFrequency', 'watchedRegions', 'updatedAt']) &&
+                         isValidUserPreference(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(prefId);
+      }
+
+      match /notifications/{notificationId} {
+        allow get, list: if isOwner(userId);
+
+        allow create: if isSignedIn() &&
+                         isValidId(notificationId) &&
+                         (isOwner(userId) || isAdmin()) &&
+                         incoming().userId == userId &&
+                         incoming().keys().hasAll(['userId', 'title', 'message', 'categoryId', 'approximateLocation', 'incidentStatus', 'notificationType', 'read', 'createdAt']) &&
+                         incoming().keys().hasOnly(['userId', 'incidentId', 'title', 'message', 'categoryId', 'approximateLocation', 'incidentStatus', 'notificationType', 'read', 'createdAt']) &&
+                         isValidNotification(incoming());
+
+        allow update: if isOwner(userId) &&
+                         isValidId(notificationId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().createdAt == existing().createdAt &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['read']) &&
+                         isValidNotification(incoming());
+
+        allow delete: if isOwner(userId) && isValidId(notificationId);
+      }
+    }
+
+    match /incidents/{incidentId} {
+      allow get: if isSignedIn() &&
+                    isValidId(incidentId) &&
+                    (isAdmin() || existing().reporterId == request.auth.uid || existing().visibility == 'PUBLIC');
+
+      // Zero-cost list evaluation (no get/exists inside list!)
+      allow list: if isSignedIn() &&
+                     (isAdminEmail() || resource.data.reporterId == request.auth.uid || resource.data.visibility == 'PUBLIC');
+
+      allow create: if isSignedIn() &&
+                       isValidId(incidentId) &&
+                       incoming().reporterId == request.auth.uid &&
+                       (incoming().source == 'COMMUNITY_REPORT' || isAdmin()) &&
+                       incoming().status == 'PENDING_VERIFICATION' &&
+                       incoming().visibility == 'PUBLIC' &&
+                       incoming().keys().hasAll([
+                         'reporterId', 'reporterRoleLabel', 'categoryId', 'title', 'description',
+                         'latitude', 'longitude', 'locationLabel', 'regionId', 'severity',
+                         'status', 'visibility', 'riskLevel', 'riskSummary', 'source',
+                         'photoPresent', 'aiStatus', 'createdAt', 'updatedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'reporterId', 'reporterRoleLabel', 'categoryId', 'title', 'description',
+                         'latitude', 'longitude', 'locationLabel', 'regionId', 'severity',
+                         'status', 'visibility', 'riskLevel', 'riskSummary', 'source',
+                         'thumbnailBase64', 'photoPresent', 'aiCategory', 'aiConfidence',
+                         'aiDescription', 'aiSuggestedSeverity', 'aiRequiresHumanReview',
+                         'aiStatus', 'weatherCondition', 'weatherTempC', 'weatherRainfallMm',
+                         'weatherSource', 'createdAt', 'updatedAt'
+                       ]) &&
+                       isValidIncident(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(incidentId) &&
+                       isValidIncident(incoming()) &&
+                       incoming().reporterId == existing().reporterId &&
+                       incoming().createdAt == existing().createdAt &&
+                       (
+                         isAdmin() ||
+                         (
+                           existing().reporterId == request.auth.uid &&
+                           existing().status == 'PENDING_VERIFICATION' &&
+                           incoming().status == 'PENDING_VERIFICATION' &&
+                           incoming().visibility == existing().visibility &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['categoryId', 'title', 'description', 'severity', 'riskLevel', 'riskSummary', 'updatedAt'])
+                         )
+                       );
+
+      allow delete: if isSignedIn() &&
+                       isValidId(incidentId) &&
+                       (
+                         isAdmin() ||
+                         (existing().reporterId == request.auth.uid && existing().status == 'PENDING_VERIFICATION')
+                       );
+    }
+
+    match /evidence/{evidenceId} {
+      allow get: if isSignedIn() &&
+                    isValidId(evidenceId) &&
+                    (isAdmin() || existing().reporterId == request.auth.uid || existing().visibility == 'PUBLIC');
+
+      // Zero-cost list evaluation (no get/exists inside list!)
+      allow list: if isSignedIn() &&
+                     (isAdminEmail() || resource.data.reporterId == request.auth.uid || resource.data.visibility == 'PUBLIC');
+
+      allow create: if isSignedIn() &&
+                       isValidId(evidenceId) &&
+                       isValidId(incoming().incidentId) &&
+                       exists(/databases/$(database)/documents/incidents/$(incoming().incidentId)) &&
+                       incoming().keys().hasAll([
+                         'incidentId', 'reporterId', 'visibility', 'fileType', 'uploadedAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'incidentId', 'reporterId', 'visibility', 'fileUrl', 'fileType',
+                         'caption', 'thumbnailBase64', 'uploadedAt'
+                       ]) &&
+                       isValidEvidence(incoming()) &&
+                       (
+                         isAdmin() ||
+                         (
+                           incoming().reporterId == request.auth.uid &&
+                           get(/databases/$(database)/documents/incidents/$(incoming().incidentId)).data.reporterId == request.auth.uid &&
+                           incoming().visibility == get(/databases/$(database)/documents/incidents/$(incoming().incidentId)).data.visibility
+                         )
+                       );
+
+      allow update: if isSignedIn() &&
+                       isValidId(evidenceId) &&
+                       isValidEvidence(incoming()) &&
+                       incoming().incidentId == existing().incidentId &&
+                       incoming().reporterId == existing().reporterId &&
+                       incoming().uploadedAt == existing().uploadedAt &&
+                       (
+                         isAdmin() ||
+                         (
+                           existing().reporterId == request.auth.uid &&
+                           incoming().diff(existing()).affectedKeys().hasOnly(['caption'])
+                         )
+                       );
+
+      allow delete: if isSignedIn() &&
+                       isValidId(evidenceId) &&
+                       (
+                         isAdmin() ||
+                         (
+                           existing().reporterId == request.auth.uid &&
+                           (
+                             !exists(/databases/$(database)/documents/incidents/$(existing().incidentId)) ||
+                             get(/databases/$(database)/documents/incidents/$(existing().incidentId)).data.status == 'PENDING_VERIFICATION'
+                           )
+                         )
+                       );
+    }
+
+    match /incident_updates/{updateId} {
+      allow get: if isSignedIn() &&
+                    isValidId(updateId) &&
+                    (isAdmin() || existing().reporterId == request.auth.uid || existing().visibility == 'PUBLIC');
+
+      // Zero-cost list evaluation (no get/exists inside list!)
+      allow list: if isSignedIn() &&
+                     (isAdminEmail() || resource.data.reporterId == request.auth.uid || resource.data.visibility == 'PUBLIC');
+
+      allow create: if isSignedIn() &&
+                       isValidId(updateId) &&
+                       isValidId(incoming().incidentId) &&
+                       exists(/databases/$(database)/documents/incidents/$(incoming().incidentId)) &&
+                       incoming().keys().hasAll([
+                         'incidentId', 'reporterId', 'visibility', 'previousStatus',
+                         'newStatus', 'updatedBy', 'updatedByRole', 'notes', 'createdAt'
+                       ]) &&
+                       incoming().keys().hasOnly([
+                         'incidentId', 'reporterId', 'visibility', 'previousStatus',
+                         'newStatus', 'updatedBy', 'updatedByRole', 'notes', 'createdAt'
+                       ]) &&
+                       isValidIncidentUpdate(incoming()) &&
+                       (
+                         (isAdmin() && incoming().updatedByRole == 'ADMIN' && incoming().updatedBy == request.auth.uid) ||
+                         (
+                           incoming().reporterId == request.auth.uid &&
+                           incoming().updatedBy == request.auth.uid &&
+                           incoming().updatedByRole == 'CITIZEN' &&
+                           incoming().previousStatus == 'NONE' &&
+                           incoming().newStatus == 'PENDING_VERIFICATION' &&
+                           get(/databases/$(database)/documents/incidents/$(incoming().incidentId)).data.reporterId == request.auth.uid
+                         )
+                       );
+
+      allow update: if isAdmin() &&
+                       isValidId(updateId) &&
+                       isValidIncidentUpdate(incoming()) &&
+                       incoming().incidentId == existing().incidentId &&
+                       incoming().reporterId == existing().reporterId &&
+                       incoming().previousStatus == existing().previousStatus &&
+                       incoming().newStatus == existing().newStatus &&
+                       incoming().updatedBy == existing().updatedBy &&
+                       incoming().updatedByRole == existing().updatedByRole &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly(['notes']);
+
+      allow delete: if isAdmin() && isValidId(updateId);
+    }
+  }
+}
